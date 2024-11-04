@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anelles i Llistes de Noms amb Persistència</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        #circle {
+            position: relative;
+            width: 90vmin; /* Canvia a unitats relatives per a mòbils */
+            height: 90vmin; /* Manté la proporció */
+            border-radius: 50%;
+            margin: 0 auto;
+        }
+        .point {
+            position: absolute;
+            width: 15vmin; /* Ajusta per mòbils */
+            height: 15vmin; /* Ajusta per mòbils */
+            border-radius: 50%;
+            background-color: #d3d3d3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .selected {
+            background-color: #1e90ff;
+            color: #fff;
+        }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        select, button {
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+            width: 80%; /* Ample per mòbils */
+        }
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            margin: 0 5px;
+            cursor: pointer;
+            background-color: #ddd;
+            border-radius: 5px;
+        }
+        .tab.active {
+            background-color: #4CAF50;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<div id="circle"></div>
+
+<div id="controls">
+    <button onclick="togglePoints()">Canvia a <span id="pointCount">12</span> Punts</button>
+    <select id="nameSelector" onchange="assignName()"></select>
+    <button onclick="clearSelections()">Esborra totes les seleccions</button>
+</div>
+
+<div class="tabs">
+    <div class="tab active" onclick="changeRing(1)">Anella 1</div>
+    <div class="tab" onclick="changeRing(2)">Anella 2</div>
+    <div class="tab" onclick="changeRing(3)">Anella 3</div>
+    <div class="tab" onclick="changeRing(4)">Anella 4</div>
+</div>
+
+<script>
+    let numPoints = 10;
+    let selectedPoint = null;
+    const rings = JSON.parse(localStorage.getItem('rings')) || {
+        1: { points: 10, names: ["Nom A", "Nom B", "Nom C", "Nom D"], assignments: {} },
+        2: { points: 12, names: ["Nom E", "Nom F", "Nom G", "Nom H"], assignments: {} },
+        3: { points: 10, names: ["Nom I", "Nom J", "Nom K", "Nom L"], assignments: {} },
+        4: { points: 12, names: ["Nom M", "Nom N", "Nom O", "Nom P"], assignments: {} }
+    };
+    let currentRing = 1;
+
+    function createPoints() {
+        const circle = document.getElementById('circle');
+        circle.innerHTML = '';
+        const ring = rings[currentRing];
+        for (let i = 0; i < ring.points; i++) {
+            const point = document.createElement('div');
+            point.classList.add('point');
+            const pointIndex = i + 1;
+            point.innerText = ring.assignments[pointIndex] || pointIndex;
+            if (ring.assignments[pointIndex]) point.classList.add('selected');
+            point.style.left = `${50 + 40 * Math.cos(2 * Math.PI * i / ring.points - Math.PI / 2)}%`;
+            point.style.top = `${50 + 40 * Math.sin(2 * Math.PI * i / ring.points - Math.PI / 2)}%`;
+            point.onclick = () => selectPoint(point, pointIndex);
+            circle.appendChild(point);
+        }
+        updateNameSelector();
+        saveState();
+    }
+
+    function togglePoints() {
+        rings[currentRing].points = rings[currentRing].points === 10 ? 12 : 10;
+        document.getElementById('pointCount').innerText = rings[currentRing].points;
+        createPoints();
+    }
+
+    function selectPoint(point, index) {
+        if (selectedPoint) selectedPoint.classList.remove('selected');
+        selectedPoint = point;
+        selectedPoint.classList.add('selected');
+        const assignedName = rings[currentRing].assignments[index] || '';
+        document.getElementById('nameSelector').value = assignedName;
+    }
+
+    function assignName() {
+        if (!selectedPoint) return;
+        const nameSelector = document.getElementById('nameSelector');
+        const selectedName = nameSelector.value;
+        const ring = rings[currentRing];
+
+        // Elimina el nom del punt anterior (si ja s'utilitzava)
+        for (let key in ring.assignments) {
+            if (ring.assignments[key] === selectedName) delete ring.assignments[key];
+        }
+
+        // Assigna el nom al punt seleccionat
+        const pointIndex = Array.from(circle.children).indexOf(selectedPoint) + 1;
+        if (selectedName) {
+            ring.assignments[pointIndex] = selectedName;
+            selectedPoint.innerText = selectedName;
+        } else {
+            delete ring.assignments[pointIndex];
+            selectedPoint.innerText = pointIndex;
+        }
+        saveState();
+    }
+
+    function clearSelections() {
+        rings[currentRing].assignments = {};
+        document.getElementById('nameSelector').value = '';
+        selectedPoint = null;
+        createPoints();
+    }
+
+    function updateNameSelector() {
+        const nameSelector = document.getElementById('nameSelector');
+        nameSelector.innerHTML = '<option value="">Selecciona un nom</option>';
+        rings[currentRing].names.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.text = name;
+            nameSelector.appendChild(option);
+        });
+    }
+
+    function changeRing(ringId) {
+        currentRing = ringId;
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        document.querySelector(`.tab:nth-child(${ringId})`).classList.add('active');
+        numPoints = rings[currentRing].points;
+        document.getElementById('pointCount').innerText = numPoints;
+        createPoints();
+    }
+
+    function saveState() {
+        localStorage.setItem('rings', JSON.stringify(rings));
+    }
+
+    window.onload = () => {
+        changeRing(1);
+    };
+</script>
+
+</body>
+</html>
